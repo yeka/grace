@@ -9,14 +9,13 @@ import (
 	"fmt"
 	"log"
 	"net"
-	"net/http"
 	"os"
 	"os/signal"
 	"sync"
 	"syscall"
 
 	"github.com/facebookgo/grace/gracenet"
-	"github.com/facebookgo/httpdown"
+	"github.com/yeka/httpdown"
 )
 
 var (
@@ -27,7 +26,7 @@ var (
 
 // An app contains one or more servers and associated configuration.
 type app struct {
-	servers   []*http.Server
+	servers   []httpdown.NetServer
 	http      *httpdown.HTTP
 	net       *gracenet.Net
 	listeners []net.Listener
@@ -35,7 +34,7 @@ type app struct {
 	errors    chan error
 }
 
-func newApp(servers []*http.Server) *app {
+func newApp(servers []httpdown.NetServer) *app {
 	return &app{
 		servers:   servers,
 		http:      &httpdown.HTTP{},
@@ -52,12 +51,12 @@ func newApp(servers []*http.Server) *app {
 func (a *app) listen() error {
 	for _, s := range a.servers {
 		// TODO: default addresses
-		l, err := a.net.Listen("tcp", s.Addr)
+		l, err := a.net.Listen("tcp", s.GetAddr())
 		if err != nil {
 			return err
 		}
-		if s.TLSConfig != nil {
-			l = tls.NewListener(l, s.TLSConfig)
+		if s.GetTLSConfig() != nil {
+			l = tls.NewListener(l, s.GetTLSConfig())
 		}
 		a.listeners = append(a.listeners, l)
 	}
@@ -120,7 +119,7 @@ func (a *app) signalHandler(wg *sync.WaitGroup) {
 
 // Serve will serve the given http.Servers and will monitor for signals
 // allowing for graceful termination (SIGTERM) or restart (SIGUSR2).
-func Serve(servers ...*http.Server) error {
+func Serve(servers ...httpdown.NetServer) error {
 	a := newApp(servers)
 
 	// Acquire Listeners
