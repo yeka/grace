@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"net/http"
 	"os"
 	"os/signal"
 	"sync"
@@ -16,6 +17,8 @@ import (
 
 	"github.com/facebookgo/grace/gracenet"
 	"github.com/yeka/httpdown"
+	"github.com/yeka/httpdown/netserver"
+	"github.com/yeka/httpdown/netserver/wrapper"
 )
 
 var (
@@ -26,7 +29,7 @@ var (
 
 // An app contains one or more servers and associated configuration.
 type app struct {
-	servers   []httpdown.NetServer
+	servers   []netserver.NetServer
 	http      *httpdown.HTTP
 	net       *gracenet.Net
 	listeners []net.Listener
@@ -34,7 +37,7 @@ type app struct {
 	errors    chan error
 }
 
-func newApp(servers []httpdown.NetServer) *app {
+func newApp(servers []netserver.NetServer) *app {
 	return &app{
 		servers:   servers,
 		http:      &httpdown.HTTP{},
@@ -65,7 +68,7 @@ func (a *app) listen() error {
 
 func (a *app) serve() {
 	for i, s := range a.servers {
-		a.sds = append(a.sds, a.http.Serve(s, a.listeners[i]))
+		a.sds = append(a.sds, a.http.ServeNetServer(s, a.listeners[i]))
 	}
 }
 
@@ -119,7 +122,15 @@ func (a *app) signalHandler(wg *sync.WaitGroup) {
 
 // Serve will serve the given http.Servers and will monitor for signals
 // allowing for graceful termination (SIGTERM) or restart (SIGUSR2).
-func Serve(servers ...httpdown.NetServer) error {
+func Serve(servers ...*http.Server) error {
+	var netservers = make([]netserver.NetServer, len(servers))
+	for i, s := range servers {
+		netservers[i] = &wrapper.HTTPServer{s}
+	}
+	return ServeNetServer(netservers...)
+}
+
+func ServeNetServer(servers ...netserver.NetServer) error {
 	a := newApp(servers)
 
 	// Acquire Listeners

@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/facebookgo/grace/gracehttp"
+	"github.com/yeka/grace/gracehttp"
 )
 
 func TestMain(m *testing.M) {
